@@ -1,0 +1,4 @@
+/target
+*.log
+# never commit keypairs
+*.json

@@ -1,0 +1,121 @@
+# release: build devnet-larper for every platform and publish the binaries
+# on the GitHub Releases page whenever a version tag (v*) is pushed.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Also publish a GitHub release (needs a tag)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # The repo's .cargo/config.toml uses target-cpu=native, which would tune the
+  # binary to the CI runner's CPU. RUSTFLAGS overrides it with a portable
+  # baseline (AVX2-era x86_64, plain aarch64).
+  RUSTFLAGS_X86: "-C target-cpu=x86-64-v3"
+  RUSTFLAGS_ARM: ""
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            arch: x86
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            arch: arm
+          - os: macos-13
+            target: x86_64-apple-darwin
+            arch: x86
+          - os: macos-14
+            target: aarch64-apple-darwin
+            arch: arm
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+            arch: x86
+            ext: .exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build
+        shell: bash
+        run: |
+          if [ "${{ matrix.arch }}" = "x86" ]; then
+            export RUSTFLAGS="$RUSTFLAGS_X86"
+          else
+            export RUSTFLAGS="$RUSTFLAGS_ARM"
+          fi
+          cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Smoke test
+        shell: bash
+        run: target/${{ matrix.target }}/release/devnet-larper${{ matrix.ext }} --version
+
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME}"
+          case "$version" in v*) ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          name="devnet-larper-${version}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          cp "target/${{ matrix.target }}/release/devnet-larper${{ matrix.ext }}" README.md LICENSE "dist/$name/"
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a -tzip "$name.zip" "$name" > /dev/null
+            echo "asset=dist/$name.zip" >> "$GITHUB_OUTPUT"
+          else
+            tar -czf "$name.tar.gz" "$name"
+            echo "asset=dist/$name.tar.gz" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: devnet-larper-${{ matrix.target }}
+          path: ${{ steps.package.outputs.asset }}
+          if-no-files-found: error
+
+  release:
+    name: publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') && (github.event_name == 'push' || inputs.publish)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd assets
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: devnet-larper ${{ github.ref_name }}
+          generate_release_notes: true
+          files: assets/*

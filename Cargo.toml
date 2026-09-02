@@ -1,0 +1,27 @@
+[package]
+name = "devnet-larper"
+version = "0.1.0"
+edition = "2021"
+authors = ["Carlo Esposito <carlo@aploi.de>"]
+description = "Fast batched miner for the Solana devnet proof-of-work faucet"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/cesp99/devnet-larper"
+readme = "README.md"
+keywords = ["solana", "devnet", "faucet", "proof-of-work", "ed25519"]
+categories = ["command-line-utilities", "cryptography::cryptocurrencies"]
+
+[dependencies]
+clap = { version = "4", features = ["derive", "env"] }
+solana-sdk = "=1.18.26"
+solana-client = "=1.18.26"
+solana-quic-client = "=1.18.26"
+sha2 = "0.10"
+bs58 = "0.4"
+rand = "0.8"
+bincode = "1.3"
+ed25519-dalek = "=1.0.1"
+curve25519-dalek = "=3.2.1"
+fiat-crypto = "0.3.0"
+
+[profile.release]
+opt-level = 3
