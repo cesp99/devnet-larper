@@ -60,7 +60,7 @@ On a 24-core machine against the public devnet RPC this sustained roughly
 
 ## Install
 
-Prebuilt binaries for Linux (x86_64, aarch64), macOS (Intel, Apple Silicon)
+Prebuilt binaries for Linux (x86_64, aarch64), macOS (Apple Silicon)
 and Windows are on the [releases page](https://github.com/cesp99/devnet-larper/releases).
 Each archive contains the `devnet-larper` binary, this README and the license.
 The CI builds target a portable CPU baseline (AVX2 on x86_64); building from
